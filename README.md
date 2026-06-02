@@ -1,6 +1,7 @@
 # @ceriousdevtech/react-cerious-scroll
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://ceriousdevtech.github.io/react-cerious-scroll/)
 
 **React bindings for [Cerious Scroll™](https://www.npmjs.com/package/@ceriousdevtech/cerious-scroll)** — high-performance virtual scrolling with **O(1) memory**, consistent **60 FPS+**, and **native variable-height support with no height estimation**.
 
@@ -20,8 +21,9 @@ npm install @ceriousdevtech/react-cerious-scroll @ceriousdevtech/cerious-scroll
 
 ## Demo
 
-A runnable demo lives in `demo/` (100,000 rows, fixed/variable-height toggle,
-imperative jump-to-row, and live viewport stats). From the repo root:
+**[Live demo →](https://ceriousdevtech.github.io/react-cerious-scroll/)** — 100,000 rows, fixed/variable-height toggle, imperative jump-to-row, and live viewport stats.
+
+To run locally:
 
 ```bash
 npm install
