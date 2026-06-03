@@ -22,6 +22,7 @@ export function DataGridDemo() {
   const [selected, setSelected] = useState<ReadonlySet<number>>(new Set());
 
   const ref = useRef<CeriousScrollHandle>(null);
+  const hScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const id = setTimeout(() => setDebounced(query), 250);
@@ -89,27 +90,11 @@ export function DataGridDemo() {
         </span>
       </div>
 
-      <div className="grid-head">
-        {GRID_COLUMNS.map((c) => (
-          <div
-            key={c.key}
-            className={`grid-head__cell${c.sortable ? ' sortable' : ''}`}
-            onClick={c.sortable ? () => toggleSort(c.key) : undefined}
-          >
-            {c.label}
-            {c.sortable && (
-              <span className={`grid-head__sort${sortCol === c.key ? ' active' : ''}`}>
-                {sortCol === c.key ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-
       <CeriousScroll
         ref={ref}
-        className="demo-scroll"
+        className="demo-scroll grid-scroll"
         items={order}
+        options={{ touch: { enabled: true, getHorizontalScrollTarget: () => hScrollRef.current } }}
         renderItem={(src) => {
           const row = makeRow(src);
           const isSel = selected.has(src);
@@ -136,7 +121,27 @@ export function DataGridDemo() {
             </div>
           );
         }}
-      />
+      >
+        <div className="grid-h-scroll" ref={hScrollRef}>
+          <div className="grid-head">
+            {GRID_COLUMNS.map((c) => (
+              <div
+                key={c.key}
+                className={`grid-head__cell${c.sortable ? ' sortable' : ''}`}
+                onClick={c.sortable ? () => toggleSort(c.key) : undefined}
+              >
+                {c.label}
+                {c.sortable && (
+                  <span className={`grid-head__sort${sortCol === c.key ? ' active' : ''}`}>
+                    {sortCol === c.key ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+          <div data-cerious-scroll-content className="grid-scroll-content" />
+        </div>
+      </CeriousScroll>
 
       <div className="demo-footer">
         <span>

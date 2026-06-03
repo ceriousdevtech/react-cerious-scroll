@@ -10,6 +10,7 @@ import {
   type CSSProperties,
   type ForwardedRef,
   type ReactElement,
+  type ReactNode,
   type Ref,
 } from 'react';
 import type {
@@ -30,6 +31,13 @@ export interface CeriousScrollProps<TItem = unknown>
   style?: CSSProperties;
   /** Forwarded to the scroll container for testing. */
   'data-testid'?: string;
+  /**
+   * Optional custom DOM rendered inside the engine container. Use this when
+   * you need siblings (e.g. a sticky header + horizontal-scroll wrapper) around
+   * the recyclable row area. Include a `<div data-cerious-scroll-content />`
+   * descendant to host the rendered rows; otherwise the engine creates its own.
+   */
+  children?: ReactNode;
 }
 
 export interface CeriousScrollHandle {
@@ -51,7 +59,7 @@ function CeriousScrollInner<TItem>(
   props: CeriousScrollProps<TItem>,
   ref: ForwardedRef<CeriousScrollHandle>,
 ): ReactElement {
-  const { className, style, 'data-testid': testId, ...hookOptions } = props;
+  const { className, style, 'data-testid': testId, children, ...hookOptions } = props;
   const {
     containerRef,
     portals,
@@ -76,6 +84,7 @@ function CeriousScrollInner<TItem>(
       data-testid={testId}
       style={{ position: 'relative', overflow: 'hidden', ...style }}
     >
+      {children}
       {portals}
     </div>
   );

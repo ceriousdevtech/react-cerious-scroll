@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { CeriousScroll } from '@ceriousdevtech/react-cerious-scroll';
 
 import { makeResult, SQL_COLUMNS, SQL_TOTAL, sqlStatusClass } from './sql.data';
@@ -6,6 +6,7 @@ import './sql.css';
 
 export function SqlResultsDemo() {
   const [selected, setSelected] = useState<number | null>(null);
+  const hScrollRef = useRef<HTMLDivElement>(null);
 
   return (
     <div className="demo-page sql-page">
@@ -31,18 +32,11 @@ export function SqlResultsDemo() {
         </span>
       </div>
 
-      <div className="sql-head">
-        {SQL_COLUMNS.map((c) => (
-          <div key={c} className="sql-head__cell">
-            {c}
-          </div>
-        ))}
-      </div>
-
       <CeriousScroll
-        className="demo-scroll"
+        className="demo-scroll sql-scroll"
         totalElements={SQL_TOTAL}
         getItem={(i) => i}
+        options={{ touch: { enabled: true, getHorizontalScrollTarget: () => hScrollRef.current } }}
         renderItem={(i) => {
           const r = makeResult(i);
           return (
@@ -61,7 +55,18 @@ export function SqlResultsDemo() {
             </div>
           );
         }}
-      />
+      >
+        <div className="sql-h-scroll" ref={hScrollRef}>
+          <div className="sql-head">
+            {SQL_COLUMNS.map((c) => (
+              <div key={c} className="sql-head__cell">
+                {c}
+              </div>
+            ))}
+          </div>
+          <div data-cerious-scroll-content className="sql-scroll-content" />
+        </div>
+      </CeriousScroll>
     </div>
   );
 }
