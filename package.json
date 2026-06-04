@@ -1,6 +1,6 @@
 {
   "name": "@ceriousdevtech/react-cerious-scroll",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "React bindings for CeriousScroll — high-performance virtual scrolling with O(1) memory and no height estimation",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -55,8 +55,10 @@
     "demo": "vite --config demo/vite.config.ts",
     "demo:build": "vite build --config demo/vite.config.ts"
   },
+  "dependencies": {
+    "@ceriousdevtech/cerious-scroll": "^1.0.4"
+  },
   "peerDependencies": {
-    "@ceriousdevtech/cerious-scroll": "^1.0.3",
     "react": ">=18 <20",
     "react-dom": ">=18 <20"
   },
@@ -71,6 +73,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.4",
+    "react-window": "^1.8.10",
+    "@types/react-window": "^1.8.8",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
     "vite-plugin-dts": "^4.3.0",

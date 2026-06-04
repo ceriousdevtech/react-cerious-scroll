@@ -5,6 +5,7 @@
 import type { ReactElement } from 'react';
 
 import { BasicDemo } from './demos/BasicDemo';
+import { ComparisonDemo } from './demos/ComparisonDemo';
 import { DataGridDemo } from './demos/DataGridDemo';
 import { ChatDemo } from './demos/ChatDemo';
 import { LogViewerDemo } from './demos/LogViewerDemo';
@@ -23,6 +24,13 @@ export interface DemoMeta {
 }
 
 export const DEMOS: DemoMeta[] = [
+  {
+    slug: 'comparison',
+    title: 'vs react-window',
+    emoji: '⚔️',
+    blurb: 'Side-by-side stress test against react-window across 5 scenarios: dynamic heights, expanding rows, async images, millions of rows, and continuous updates.',
+    element: <ComparisonDemo />,
+  },
   {
     slug: 'basic',
     title: 'Basic / Vanilla',
