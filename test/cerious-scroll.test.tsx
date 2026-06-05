@@ -1,4 +1,4 @@
-import { createRef } from 'react';
+import { createRef, useState } from 'react';
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -89,6 +89,83 @@ describe('<CeriousScroll>', () => {
 
     expect(container.querySelectorAll('.row').length).toBeGreaterThan(0);
     expect(container.textContent).toContain('Row 0');
+  });
+
+  it('does not re-render unchanged rows on a reposition render()', async () => {
+    // A scroll repositions existing rows (the engine writes their `top` to the
+    // DOM directly) without changing their content. The per-row portal cache
+    // must reuse the existing nodes so renderItem is NOT re-invoked — this is
+    // what keeps heavy rows cheap to scroll.
+    const renderSpy = vi.fn((item: { id: number; label: string }) => (
+      <div className="row">{item.label}</div>
+    ));
+    const ref = createRef<CeriousScrollHandle>();
+    const { container } = render(
+      <CeriousScroll
+        ref={ref}
+        items={items}
+        options={{ attachScrollbar: false }}
+        renderItem={renderSpy}
+        style={{ height: 300 }}
+      />,
+    );
+
+    await flushFrames();
+    const before = container.querySelectorAll('.row').length;
+    expect(before).toBeGreaterThan(0);
+
+    renderSpy.mockClear();
+    await act(async () => {
+      ref.current?.render();
+    });
+    await flushFrames();
+
+    // No row entered/left and no item changed → every portal is reused.
+    expect(renderSpy).not.toHaveBeenCalled();
+    expect(container.querySelectorAll('.row').length).toBe(before);
+    expect(container.textContent).toContain('Item 0');
+  });
+
+  it('re-renders rows when their item references change', async () => {
+    // The memo must not stale content: when the data updates (new item refs),
+    // the affected rows have to re-render. Uses a stable renderItem so the cache
+    // is driven purely by per-row item identity, not by renderItem identity.
+    const renderSpy = vi.fn((item: { id: number; label: string }) => (
+      <div className="row">{item.label}</div>
+    ));
+
+    function Harness() {
+      const [data, setData] = useState(items);
+      return (
+        <>
+          <button type="button" onClick={() => setData(items.map((it) => ({ ...it })))}>
+            mutate
+          </button>
+          <CeriousScroll
+            items={data}
+            options={{ attachScrollbar: false }}
+            renderItem={renderSpy}
+            style={{ height: 300 }}
+          />
+        </>
+      );
+    }
+
+    const { container, getByText } = render(<Harness />);
+    await flushFrames();
+    const rendered = container.querySelectorAll('.row').length;
+    expect(rendered).toBeGreaterThan(0);
+
+    renderSpy.mockClear();
+    await act(async () => {
+      getByText('mutate').click();
+    });
+    await flushFrames();
+
+    // Every item got a fresh reference, so every rendered row re-renders.
+    expect(renderSpy).toHaveBeenCalled();
+    expect(container.querySelectorAll('.row').length).toBe(rendered);
+    expect(container.textContent).toContain('Item 0');
   });
 
   it('unmounts cleanly without throwing', async () => {

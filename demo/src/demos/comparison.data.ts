@@ -79,6 +79,16 @@ export function makeRowDatasource(total: number, scenario?: Scenario) {
   const overrides = new Map<number, Partial<CmpRow>>();
   const subscribers = new Set<() => void>();
   const imageRequested = new Set<number>();
+  // Memoize built rows so getRow returns a STABLE reference for an unchanged
+  // index. The React wrapper keys its per-row portal cache on item identity, so
+  // without this every getRow call (several per scroll frame) would allocate a
+  // fresh row — and a fresh 60-cell array for the spreadsheet — defeating the
+  // memo and forcing every visible row to re-render on every frame. Entries are
+  // invalidated whenever the row's override changes (setOverride / clear / async
+  // image load). Capped so a long scroll through a huge dataset can't grow it
+  // without bound; a rare full clear just costs one frame of re-render.
+  const rowCache = new Map<number, CmpRow>();
+  const ROW_CACHE_CAP = 4096;
   let notifyScheduled = false;
   const notify = (): void => {
     if (notifyScheduled) return;
@@ -96,7 +106,7 @@ export function makeRowDatasource(total: number, scenario?: Scenario) {
     }
   }
 
-  const getRow = (i: number): CmpRow => {
+  const buildRow = (i: number): CmpRow => {
     const baseHeight = baseHeightFor(i);
     const hasImage = scenario === 'async-images';
     if (scenario === 'spreadsheet') {
@@ -169,19 +179,34 @@ export function makeRowDatasource(total: number, scenario?: Scenario) {
       setTimeout(() => {
         const prev = overrides.get(i) ?? {};
         overrides.set(i, { ...prev, imageLoaded: true });
+        rowCache.delete(i); // next getRow rebuilds with imageLoaded: true
         notify();
       }, delay);
     }
     return row;
   };
 
+  // Stable-reference accessor: returns the cached row for an index until its
+  // override changes. The async-image side effect lives in buildRow, so it
+  // still fires exactly once per index (on the first, cache-missing build).
+  const getRow = (i: number): CmpRow => {
+    const hit = rowCache.get(i);
+    if (hit) return hit;
+    const row = buildRow(i);
+    if (rowCache.size >= ROW_CACHE_CAP) rowCache.clear();
+    rowCache.set(i, row);
+    return row;
+  };
+
   const setOverride = (i: number, patch: Partial<CmpRow>): void => {
     const prev = overrides.get(i) ?? {};
     overrides.set(i, { ...prev, ...patch });
+    rowCache.delete(i); // next getRow rebuilds with the new override
   };
 
   const clearOverrides = (): void => {
     overrides.clear();
+    rowCache.clear();
   };
 
   const rowHeight = (i: number): number => {

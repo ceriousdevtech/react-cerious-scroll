@@ -117,6 +117,14 @@ export function useCeriousScroll<TItem = unknown>(
   const containerRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<Host | null>(null);
   const rowsRef = useRef<Map<number, RowEntry>>(new Map());
+  // Per-row portal cache (see the portals build at the bottom of the hook):
+  // keeps each row's createPortal node referentially stable while its resolved
+  // item and mount node are unchanged, so a pure scroll skips re-rendering every
+  // visible row through React.
+  const nodeCacheRef = useRef<
+    Map<number, { item: unknown; mount: HTMLElement; node: ReactNode }>
+  >(new Map());
+  const lastRenderItemRef = useRef<((item: TItem, index: number) => ReactNode) | null>(null);
   const posRef = useRef<{ currentElement: number; scrollOffset: number } | null>(null);
   const [, forceRender] = useReducer((c: number) => c + 1, 0);
   const [scroller, setScroller] = useState<CeriousScrollEngine | null>(null);
@@ -269,6 +277,8 @@ export function useCeriousScroll<TItem = unknown>(
       // on unmount the portals leave with the component; on recreation the
       // follow-up render repopulates them.
       rowsRef.current.clear();
+      nodeCacheRef.current.clear();
+      lastRenderItemRef.current = null;
 
       contentEl.textContent = '';
       instance.detachScrollbar(container);
@@ -348,13 +358,51 @@ export function useCeriousScroll<TItem = unknown>(
   const itemsForBound = itemsRef.current;
   const boundLength =
     !getItemPropRef.current && itemsForBound != null ? itemsForBound.length : null;
+
+  // Memoize each row's portal so a pure scroll doesn't re-render every visible
+  // row through React. During a scroll the engine only repositions existing
+  // rows — it writes each row's `top` straight to its DOM node — so their React
+  // content is unchanged. We cache the createPortal node per index and reuse it
+  // while the row's resolved `item` and mount node are identical; React
+  // short-circuits reconciliation when it sees the same element reference, so
+  // only newly-mounted rows (and rows whose item actually changed) re-render.
+  // This keeps heavy rows — e.g. wide spreadsheet rows with many cells — cheap
+  // to scroll instead of rebuilding every cell every frame. It is correct under
+  // the documented contract that `renderItem` is a pure function of
+  // (item, index): pass stable item references for unchanged rows to benefit.
+  //
+  // A change to `renderItem` itself (new render logic) busts the whole cache.
+  const renderItem = renderItemRef.current;
+  const nodeCache = nodeCacheRef.current;
+  if (lastRenderItemRef.current !== renderItem) {
+    nodeCache.clear();
+    lastRenderItemRef.current = renderItem;
+  }
   const portals: ReactNode[] = [];
   rowsRef.current.forEach((entry, index) => {
-    if (boundLength !== null && index >= boundLength) return;
-    portals.push(
-      createPortal(renderItemRef.current(getItem(index), index), entry.mount, String(index)),
-    );
+    if (boundLength !== null && index >= boundLength) {
+      nodeCache.delete(index);
+      return;
+    }
+    const item = getItem(index);
+    let cached = nodeCache.get(index);
+    if (!cached || cached.item !== item || cached.mount !== entry.mount) {
+      cached = {
+        item,
+        mount: entry.mount,
+        node: createPortal(renderItem(item, index), entry.mount, String(index)),
+      };
+      nodeCache.set(index, cached);
+    }
+    portals.push(cached.node);
   });
+  // Drop cache entries for rows the engine no longer renders so the map can't
+  // grow unbounded as you scroll.
+  if (nodeCache.size > rowsRef.current.size) {
+    nodeCache.forEach((_entry, index) => {
+      if (!rowsRef.current.has(index)) nodeCache.delete(index);
+    });
+  }
 
   return {
     containerRef,
