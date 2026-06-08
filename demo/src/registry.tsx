@@ -7,6 +7,7 @@ import type { ReactElement } from 'react';
 import { BasicDemo } from './demos/BasicDemo';
 import { ComparisonDemo } from './demos/ComparisonDemo';
 import { DataGridDemo } from './demos/DataGridDemo';
+import { TableDemo } from './demos/TableDemo';
 import { ChatDemo } from './demos/ChatDemo';
 import { LogViewerDemo } from './demos/LogViewerDemo';
 import { CodeViewerDemo } from './demos/CodeViewerDemo';
@@ -44,6 +45,13 @@ export const DEMOS: DemoMeta[] = [
     emoji: '📊',
     blurb: 'Multi-column grid with sortable headers, live search, and Ctrl/Cmd multi-select.',
     element: <DataGridDemo />,
+  },
+  {
+    slug: 'table',
+    title: 'Native Table',
+    emoji: '🧮',
+    blurb: "Real <table>/<tr>/<td> rows via layout:'table' — frozen header, aligned columns, single tbody transform. Virtualizes millions of rows with ~25 DOM rows.",
+    element: <TableDemo />,
   },
   {
     slug: 'chat',

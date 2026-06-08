@@ -39,6 +39,12 @@ export interface UseCeriousScrollOptions<TItem = unknown> {
   getItem?: (index: number) => TItem;
   /** Renders a single row. `item` is `undefined` when no data source is given. */
   renderItem: (item: TItem, index: number) => ReactNode;
+  /**
+   * Table mode only: declarative header content rendered into the engine's
+   * `<thead>` (provide a `<tr>` of `<th>`s). It lives in the same `<table>` as
+   * the rows, so columns align natively. Reactive — re-renders like any portal.
+   */
+  tableHeader?: ReactNode;
   /** Options forwarded to `new CeriousScroll(...)` (read once, at creation). */
   options?: CeriousScrollOptions;
   /** Automatically render after scroll/resize/data changes. Default: `true`. */
@@ -81,7 +87,8 @@ export interface UseCeriousScrollResult {
 
 interface RowEntry {
   el: HTMLElement;
-  mount: HTMLDivElement;
+  // A wrapper <div> in div mode, or the row's own <tr> in table mode.
+  mount: HTMLElement;
 }
 
 interface Host {
@@ -126,6 +133,10 @@ export function useCeriousScroll<TItem = unknown>(
   >(new Map());
   const lastRenderItemRef = useRef<((item: TItem, index: number) => ReactNode) | null>(null);
   const posRef = useRef<{ currentElement: number; scrollOffset: number } | null>(null);
+  // Table mode: the engine's <thead>, captured via the table.header hook, plus
+  // the latest header content. We portal the content into the thead.
+  const theadRef = useRef<HTMLElement | null>(null);
+  const tableHeaderRef = useRef<ReactNode>(opts.tableHeader);
   const [, forceRender] = useReducer((c: number) => c + 1, 0);
   const [scroller, setScroller] = useState<CeriousScrollEngine | null>(null);
 
@@ -143,6 +154,7 @@ export function useCeriousScroll<TItem = unknown>(
   renderItemRef.current = opts.renderItem;
   itemsRef.current = opts.items ?? null;
   getItemPropRef.current = opts.getItem;
+  tableHeaderRef.current = opts.tableHeader;
   optionsRef.current = opts.options;
   autoRenderRef.current = opts.autoRender ?? true;
   totalRef.current = opts.totalElements ?? null;
@@ -167,7 +179,16 @@ export function useCeriousScroll<TItem = unknown>(
     // cleared before the live portals commit (React portals append to — they do
     // NOT clear — their container, so leftover static markup would shadow the
     // interactive row and never update).
-    const freshMounts: HTMLDivElement[] = [];
+    const freshMounts: HTMLElement[] = [];
+
+    // In table mode the engine's row element is a real <tr>, whose children must
+    // be <td>s. We still give React its own stable mount element (never the
+    // engine's <tr>): the engine recycles/clears <tr>s across indices, and if
+    // React's portal target were the <tr> itself, React's later unmount would
+    // call removeChild on cells the engine already cleared ("not a child of this
+    // node"). The mount is a `display: contents` wrapper, so its <td> children
+    // still lay out as the <tr>'s cells while React fully owns the wrapper.
+    const tableMode = optionsRef.current?.layout === 'table';
 
     const renderer: ElementRenderer = (index, el) => {
       // The engine renders incrementally: it calls us, then immediately reads
@@ -180,6 +201,7 @@ export function useCeriousScroll<TItem = unknown>(
       // Any small difference between the static and live height is reconciled by
       // the engine's own content observer, so positions stay correct.
       const mount = document.createElement('div');
+      if (tableMode) mount.style.display = 'contents';
       mount.setAttribute(ROW_ATTR, String(index));
       mount.innerHTML = renderToStaticMarkup(
         createElement(Fragment, null, renderItemRef.current(getItem(index), index)),
@@ -234,6 +256,19 @@ export function useCeriousScroll<TItem = unknown>(
         if (autoRenderRef.current) render();
       },
     };
+
+    // Table mode: capture the engine-created <thead> so we can portal the
+    // declarative header into it (and still run any user-provided header hook).
+    if (userOptions.layout === 'table' && tableHeaderRef.current != null) {
+      const userHeader = userOptions.table?.header;
+      mergedOptions.table = {
+        ...userOptions.table,
+        header: (thead) => {
+          theadRef.current = thead;
+          userHeader?.(thead);
+        },
+      };
+    }
 
     const total = resolveTotal(totalRef.current, itemsRef.current?.length ?? null);
     const instance = new CeriousScrollEngine(container, total, mergedOptions);
@@ -402,6 +437,12 @@ export function useCeriousScroll<TItem = unknown>(
     nodeCache.forEach((_entry, index) => {
       if (!rowsRef.current.has(index)) nodeCache.delete(index);
     });
+  }
+
+  // Table mode: portal the declarative header into the engine's <thead> (set by
+  // the header hook on the first render). Reactive — updates like the rows.
+  if (opts.tableHeader != null && theadRef.current) {
+    portals.push(createPortal(opts.tableHeader, theadRef.current, 'cerious-thead'));
   }
 
   return {

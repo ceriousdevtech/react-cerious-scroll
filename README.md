@@ -109,7 +109,8 @@ function List() {
 | `items` | `readonly TItem[]` | Optional data array. `totalElements` defaults to `items.length`. |
 | `totalElements` | `number` | Total item count. Required if `items` is omitted. |
 | `getItem` | `(index) => TItem` | Lazy item getter for large/sparse datasets. |
-| `options` | `CeriousScrollOptions` | Engine options (keyboard/touch/wheel/scrollbar/etc.). Read once at creation. |
+| `tableHeader` | `ReactNode` | Table mode only. A `<tr>` of `<th>`s rendered into the engine's `<thead>` (see [Table layout](#table-layout)). |
+| `options` | `CeriousScrollOptions` | Engine options (keyboard/touch/wheel/scrollbar/`layout`/etc.). Read once at creation. |
 | `autoRender` | `boolean` | Re-render on scroll/resize/data changes. Default `true`. |
 | `onViewportChange` | `(detail) => void` | Normalized viewport-change callback. |
 | `onMeasuredViewport` | `(range) => void` | Measured range after each render pass. |
@@ -127,6 +128,41 @@ const ref = useRef<CeriousScrollHandle>(null);
 // ref.current?.recalculate(); // drop cached heights + re-measure (see Notes)
 // ref.current?.scroller;      // the raw engine
 ```
+
+---
+
+## Table layout
+
+Pass `options={{ layout: 'table' }}` to render real `<table>` / `<tr>` / `<td>` rows with a frozen header and native column alignment. Your `renderItem` returns the row's `<td>` cells, and `tableHeader` provides the (declarative, reactive) `<thead>` row:
+
+```tsx
+import { TABLE_COLUMNS } from './data';
+
+<CeriousScroll
+  className="my-scroll"            // give it a height
+  totalElements={100_000}
+  getItem={(i) => i}
+  options={{ layout: 'table', table: { tableClassName: 'my-table', autoSizeColumns: true } }}
+  tableHeader={
+    <tr>{TABLE_COLUMNS.map((c) => <th key={c.key}>{c.label}</th>)}</tr>
+  }
+  renderItem={(index) => {
+    const row = makeRow(index);
+    return (
+      <>
+        <td>{row.id}</td>
+        <td>{row.name}</td>
+        <td>{row.email}</td>
+      </>
+    );
+  }}
+/>
+```
+
+- **`tableHeader`** is portaled into the engine's `<thead>` — the same `<table>` as the rows, so columns align natively and the header stays frozen.
+- **`renderItem` must return `<td>`s** (a fragment of cells). They're rendered into the row's `<tr>` via a `display: contents` wrapper, so React fully owns them and the engine's row recycling can't tear them out.
+- **`table.autoSizeColumns`** measures column widths once and pins them — auto-sized but stable (no jitter, no manual widths). Or use `table.columnWidths`. Variable row heights work as usual.
+- CSS: `border-collapse: separate` and an **opaque `<thead>` background** (see the core README's [Table Layout](https://github.com/ceriousdevtech/cerious-scroll#-table-layout-layout-table) notes).
 
 ---
 
