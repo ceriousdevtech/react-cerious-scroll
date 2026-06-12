@@ -8,6 +8,8 @@ import { BasicDemo } from './demos/BasicDemo';
 import { ComparisonDemo } from './demos/ComparisonDemo';
 import { DataGridDemo } from './demos/DataGridDemo';
 import { TableDemo } from './demos/TableDemo';
+import { TableHeightsDemo } from './demos/TableHeightsDemo';
+import { TableStreamDemo } from './demos/TableStreamDemo';
 import { ChatDemo } from './demos/ChatDemo';
 import { LogViewerDemo } from './demos/LogViewerDemo';
 import { CodeViewerDemo } from './demos/CodeViewerDemo';
@@ -52,6 +54,20 @@ export const DEMOS: DemoMeta[] = [
     emoji: '🧮',
     blurb: "Real <table>/<tr>/<td> rows via layout:'table' — frozen header, aligned columns, single tbody transform. Virtualizes millions of rows with ~25 DOM rows.",
     element: <TableDemo />,
+  },
+  {
+    slug: 'table-heights',
+    title: 'Table · Wild Heights',
+    emoji: '🪜',
+    blurb: 'Native <table> stress test: every <tr> has a wildly different height — one-liners, walls of text, long lists, code blocks, tall banners. Each row is measured, never estimated.',
+    element: <TableHeightsDemo />,
+  },
+  {
+    slug: 'table-prepend',
+    title: 'Table · Prepend & Anchor',
+    emoji: '📡',
+    blurb: 'Inject variable-height rows at the TOP of the stream — live telemetry / chat-history backfill — and watch the scroll position stay cleanly anchored to the row you were reading.',
+    element: <TableStreamDemo />,
   },
   {
     slug: 'chat',
