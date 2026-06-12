@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
 import {
   CeriousScroll,
   type CeriousScrollHandle,
@@ -40,15 +39,11 @@ function EventBody({ ev }: { ev: StreamEvent }) {
 export function TableStreamDemo() {
   const ref = useRef<CeriousScrollHandle>(null);
 
-  // Content is addressed by `seq` (index 0 = newest = baseSeq). `baseSeqRef` is the
-  // source of truth read by the (stable) prepend/live callbacks; `baseSeq` STATE
-  // mirrors it and drives renderItem's identity. The React wrapper renders rows as
-  // portals cached by index that only re-render when renderItem's identity changes
-  // — so on a small prepend, keying renderItem on `baseSeq` busts that cache and
-  // every visible row refreshes to the new content (otherwise overlapping rows keep
-  // stale content while the position shifts, and the view appears to scroll).
+  // Content is addressed by `seq` (index 0 = newest = baseSeq), held in refs read
+  // by the renderer. A prepend updates baseSeqRef and calls recalculate(), which
+  // re-runs renderItem for every visible row — so the content stays in sync with
+  // the anchored position.
   const baseSeqRef = useRef(TOTAL - 1);
-  const [baseSeq, setBaseSeq] = useState(TOTAL - 1);
   const freshMinSeqRef = useRef(-1);
   const followRef = useRef(false);
   const [follow, setFollow] = useState(false);
@@ -87,11 +82,6 @@ export function TableStreamDemo() {
     baseSeqRef.current += k;                          // k newer events enter at the top
     freshMinSeqRef.current = baseSeqRef.current - k + 1; // mark the just-arrived batch NEW
 
-    // Refresh the row CONTENT first (busts the portal cache so every visible row
-    // re-renders with the new baseSeq), synchronously, so it lands in the same
-    // paint as the position move below — no transient stale frame.
-    flushSync(() => setBaseSeq(baseSeqRef.current));
-
     if (followRef.current) {
       ref.current?.jumpToElement(0);                 // ride the newest
     } else {
@@ -118,15 +108,14 @@ export function TableStreamDemo() {
 
   const goTop = () => { ref.current?.jumpToElement(0); setNewAbove(0); refreshStat(); };
 
-  // Keyed on `baseSeq` so its identity changes on each prepend → the wrapper busts
-  // its per-index portal cache and re-renders every visible row with fresh content.
-  // (During plain scrolling baseSeq is constant, so identity is stable and rows are
-  // not needlessly re-measured.)
+  // Identity-stable: reads the live baseSeq/freshMin from refs. recalculate() in
+  // prepend() re-runs this for every visible row, so the content refreshes with
+  // the anchored position without the toolbar re-rendering every row on scroll.
   const renderItem = useCallback((index: number) => {
-    const seq = baseSeq - index;
+    const seq = baseSeqRef.current - index;
     const ev = makeEvent(seq);
     const isNew = freshMinSeqRef.current >= 0 && seq >= freshMinSeqRef.current;
-    const ago = baseSeq - seq;
+    const ago = baseSeqRef.current - seq;
     return (
       <>
         <td className={`col-time${isNew ? ' is-new' : ''}`}>
@@ -138,7 +127,7 @@ export function TableStreamDemo() {
         <td className="col-seq"><span className="cell-seq">#{ev.seq.toLocaleString()}</span></td>
       </>
     );
-  }, [baseSeq]);
+  }, []);
 
   return (
     <div className="demo-page cs-stream-page">

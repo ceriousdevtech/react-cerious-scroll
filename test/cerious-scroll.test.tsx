@@ -168,6 +168,43 @@ describe('<CeriousScroll>', () => {
     expect(container.textContent).toContain('Item 0');
   });
 
+  it('recalculate() re-renders visible rows even when (item, index) are unchanged', async () => {
+    // recalculate() means "content may have changed, re-run the renderer" — it
+    // must refresh row content even when each row's (item, index) is identical
+    // (e.g. content derived from external state, like a sliding window). It has to
+    // bust the per-index portal cache, matching the Vue/Angular wrappers whose
+    // recalculate() re-runs the row template/slot.
+    let version = 'A';
+    const renderSpy = vi.fn((item: { id: number; label: string }) => (
+      <div className="row">{`r${item.id}-${version}`}</div>
+    ));
+    const ref = createRef<CeriousScrollHandle>();
+    const { container } = render(
+      <CeriousScroll
+        ref={ref}
+        items={items}
+        options={{ attachScrollbar: false }}
+        renderItem={renderSpy}
+        style={{ height: 300 }}
+      />,
+    );
+
+    await flushFrames();
+    expect(container.textContent).toContain('r0-A');
+
+    // External state changes; every row's (item, index) is unchanged.
+    version = 'B';
+    renderSpy.mockClear();
+    await act(async () => {
+      ref.current?.recalculate();
+    });
+    await flushFrames();
+
+    expect(renderSpy).toHaveBeenCalled();
+    expect(container.textContent).toContain('r0-B');
+    expect(container.textContent).not.toContain('r0-A');
+  });
+
   it('unmounts cleanly without throwing', async () => {
     const { unmount } = render(
       <CeriousScroll

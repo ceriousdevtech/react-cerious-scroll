@@ -5,6 +5,11 @@ All notable changes to react-cerious-scroll will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2026-06-11
+
+### Fixed
+- **`recalculate()` now refreshes row content, not just heights.** It re-runs `renderItem` for every currently-rendered row (busting the per-index portal cache), so rows whose content depends on state outside `(item, index)` — e.g. a sliding/windowed data source where index → content shifts — update on an in-place refresh. Previously `recalculate()` only cleared the engine's height caches and re-measured, leaving such rows showing stale content; this now matches the Vue/Angular wrappers, whose `recalculate()` re-runs the row template/slot. A plain scroll still reuses cached portals for unchanged rows, so heavy rows stay cheap to scroll.
+
 ## [1.0.5] - 2026-06-08
 
 ### Added

@@ -377,6 +377,16 @@ export function useCeriousScroll<TItem = unknown>(
     // percentage, so an in-place height change (e.g. expand/collapse) is
     // reflected in the total content height and scrollbar immediately.
     host.scroller.clearAllCaches();
+    // Also bust the per-index PORTAL cache so every visible row's React content
+    // is re-rendered from the current `renderItem`. The cache normally reuses a
+    // row's portal while its (item, index, mount) are unchanged — correct for a
+    // pure scroll — but `recalculate()` means "the content may have changed,
+    // re-run the renderer," matching the Vue/Angular wrappers (which re-run the
+    // row template/slot). Without this, content that depends on state outside
+    // (item, index) — e.g. a sliding window keyed off external data — would stay
+    // stale after recalculate even though the heights were re-measured. Same key
+    // (the row index) per portal, so React reconciles content in place; no remount.
+    nodeCacheRef.current.clear();
     return render();
   }, [render]);
 
