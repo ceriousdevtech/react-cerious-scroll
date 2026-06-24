@@ -5,10 +5,19 @@ All notable changes to react-cerious-scroll will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] - 2026-06-24
+
+### Changed
+- **A change in the item count now grows/shrinks the dataset in place instead of recreating the engine.** The hook calls `updateTotalElements()` (propagating the new count to navigation bounds, the scrollbar track, the renderer, and the height cache) rather than tearing down and rebuilding the scroller. A live append/prepend therefore keeps the scroll position and any in-progress scrollbar drag alive, and an appended dataset keeps a stable bottom index instead of a bouncing tail. A shrink that leaves the position past the new end is clamped, and the scrollbar thumb is re-synced after the lengthened track re-renders. No public API change.
+- Updated the core engine dependency to `@ceriousdevtech/cerious-scroll@^1.0.8` (native-scrollbar drag rendering is now coalesced to one render per frame, with no per-row layout thrash on fast drags).
+
 ## [1.0.6] - 2026-06-11
 
 ### Fixed
 - **`recalculate()` now refreshes row content, not just heights.** It re-runs `renderItem` for every currently-rendered row (busting the per-index portal cache), so rows whose content depends on state outside `(item, index)` — e.g. a sliding/windowed data source where index → content shifts — update on an in-place refresh. Previously `recalculate()` only cleared the engine's height caches and re-measured, leaving such rows showing stale content; this now matches the Vue/Angular wrappers, whose `recalculate()` re-runs the row template/slot. A plain scroll still reuses cached portals for unchanged rows, so heavy rows stay cheap to scroll.
+
+### Changed
+- Updated the core engine dependency to `@ceriousdevtech/cerious-scroll@^1.0.7` (scrollbar drag-to-top fix).
 
 ## [1.0.5] - 2026-06-08
 

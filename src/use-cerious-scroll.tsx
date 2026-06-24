@@ -240,7 +240,10 @@ export function useCeriousScroll<TItem = unknown>(
     return range;
   }, []);
 
-  // Create (and recreate, when the item count changes) the engine instance.
+  // Create the engine once per mount. A change in the element count no longer
+  // recreates it (see the in-place growth effect below) — so an in-progress
+  // scrollbar drag and the scroll position survive a live append/prepend, and a
+  // dataset that is appended to does not leave a sliding/bouncing bottom.
   const totalDep = opts.totalElements ?? opts.items?.length ?? null;
   useEffect(() => {
     const container = containerRef.current;
@@ -322,6 +325,42 @@ export function useCeriousScroll<TItem = unknown>(
       hostRef.current = null;
       setScroller(null);
     };
+    // Mount-only: count changes are handled in place by the effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [render]);
+
+  // Grow/shrink the dataset IN PLACE when the element count changes — no
+  // recreate. updateTotalElements propagates the new count to every subsystem
+  // (navigation bounds, scrollbar track height, renderer, height cache) while
+  // leaving the DOM and any in-progress scrollbar drag intact. Growing keeps the
+  // oldest row at a stable bottom index (no bouncing tail); the track lengthens,
+  // so we re-sync the thumb afterwards. A consumer that only appends data hits
+  // this path; the prepend demo also calls updateTotalElements itself, which
+  // makes this a no-op (the count already matches) but keeps the prop in sync.
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host || totalDep == null) return;
+    const next = resolveTotal(totalRef.current, itemsRef.current?.length ?? null);
+    if (next === host.scroller.totalElements) return;
+
+    host.scroller.updateTotalElements(next);
+    // A shrink can leave the position past the new end — clamp it.
+    if (host.scroller.currentElement > next - 1) {
+      host.scroller.jumpToElement(next - 1);
+    }
+    // Defer the render (which flushSync-commits the row portals) to a frame, as
+    // the create effect does — calling it synchronously inside this effect warns
+    // "flushSync was called from inside a lifecycle method." Re-sync the thumb
+    // after the render so the percentage reflects the re-measured heights.
+    if (autoRenderRef.current) {
+      const sc = host.scroller;
+      requestAnimationFrame(() => {
+        render();
+        sc.syncScrollbar();
+      });
+    } else {
+      host.scroller.syncScrollbar();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalDep, render]);
 

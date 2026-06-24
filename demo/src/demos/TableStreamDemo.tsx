@@ -12,13 +12,13 @@ import {
 } from './table-stream.data';
 import './table-stream.css';
 
-// The engine's element count stays FIXED so it is never recreated on a prepend
-// (growing totalElements would tear down + rebuild the whole scroller every
-// inject — that read as flicker in React and scrollbar thrash in Vue/Angular).
-// Instead we slide the content under a fixed window: index i shows
-// seq = baseSeq - i, and "prepending k" just grows baseSeq by k (newer events
-// enter at index 0) while we shift the scroll position by k to hold the anchor.
-const TOTAL = 2000;
+// The dataset GROWS in place as events arrive. The binding calls the engine's
+// updateTotalElements (no recreate — an in-progress scrollbar drag survives), so
+// the oldest event keeps a STABLE bottom index: scrolling to the bottom doesn't
+// bounce. Content is index-addressed — index i shows seq = baseSeq - i (index 0
+// = newest = baseSeq, index total-1 = oldest = seq 0) — and "prepending k" grows
+// both total and baseSeq by k while we shift the anchor by k to hold position.
+const INITIAL_TOTAL = 2000;
 
 /** The variable-height EVENT cell body, rendered per event kind. */
 function EventBody({ ev }: { ev: StreamEvent }) {
@@ -43,12 +43,13 @@ export function TableStreamDemo() {
   // by the renderer. A prepend updates baseSeqRef and calls recalculate(), which
   // re-runs renderItem for every visible row — so the content stays in sync with
   // the anchored position.
-  const baseSeqRef = useRef(TOTAL - 1);
+  const baseSeqRef = useRef(INITIAL_TOTAL - 1);
   const freshMinSeqRef = useRef(-1);
   const followRef = useRef(false);
+  const [total, setTotal] = useState(INITIAL_TOTAL); // grows as events arrive
   const [follow, setFollow] = useState(false);
   const [newAbove, setNewAbove] = useState(0);
-  const [seen, setSeen] = useState(TOTAL); // events that have entered the stream
+  const [seen, setSeen] = useState(INITIAL_TOTAL); // events that have entered the stream
   const [stat, setStat] = useState('scroll down, then inject to test anchoring');
   const [live, setLive] = useState(false);
   const liveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -79,23 +80,32 @@ export function TableStreamDemo() {
     const anchorOff = s.scrollOffset;
     const wasAtTop = atTop();
 
+    const nextTotal = s.totalElements + k;
     baseSeqRef.current += k;                          // k newer events enter at the top
     freshMinSeqRef.current = baseSeqRef.current - k + 1; // mark the just-arrived batch NEW
+
+    // Grow the dataset IN PLACE — no recreate, so a scrollbar drag survives and
+    // the oldest event keeps a stable bottom index (no bouncing tail).
+    s.updateTotalElements(nextTotal);
 
     if (followRef.current) {
       ref.current?.jumpToElement(0);                 // ride the newest
     } else {
       // Hold the SAME logical row: it shifted from index anchorEl to anchorEl+k.
-      // jumpToElement syncs the scrollbar thumb; restoring scrollOffset keeps the
-      // sub-row position; recalculate re-renders the visible rows with the new
-      // baseSeq content (and re-measures their heights). All synchronous → 1 paint.
-      const target = Math.min(anchorEl + k, TOTAL - 1);
+      // jumpToElement re-anchors; restoring scrollOffset keeps the sub-row
+      // position; recalculate re-renders the visible rows with the new baseSeq
+      // content (and re-measures their heights). All synchronous → 1 paint.
+      const target = Math.min(anchorEl + k, nextTotal - 1);
       ref.current?.jumpToElement(target);
       if (anchorOff > 0 && ref.current?.scroller) ref.current.scroller.scrollOffset = anchorOff;
       if (!wasAtTop) setNewAbove((n) => n + k);
     }
     ref.current?.recalculate();
-    setSeen(baseSeqRef.current + 1);
+    // The track just got longer — re-pin the thumb (a bottom-parked thumb would
+    // otherwise ride up on the first append). Defers if the user is mid-drag.
+    s.syncScrollbar();
+    setTotal(nextTotal);                             // keep the totalElements prop in sync
+    setSeen(nextTotal);
     refreshStat();
   }, [refreshStat]);
 
@@ -166,7 +176,7 @@ export function TableStreamDemo() {
         <CeriousScroll
           ref={ref}
           className="demo-scroll cs-table-scroll"
-          totalElements={TOTAL}
+          totalElements={total}
           getItem={(i) => i}
           options={{ layout: 'table', table: { tableClassName: 'cs-table', columnWidths: [...STREAM_COLUMN_WIDTHS] } }}
           onViewportChange={refreshStat}
