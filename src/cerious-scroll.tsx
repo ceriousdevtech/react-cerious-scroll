@@ -45,6 +45,7 @@ export interface CeriousScrollHandle {
   scroller: CeriousScrollEngine | null;
   render(): MeasuredViewportRange | null;
   jumpToElement(index: number): MeasuredViewportRange | null;
+  jumpToItem(index: number, screenOffset?: number): MeasuredViewportRange | null;
   scrollToPercentage(percentage: number): MeasuredViewportRange | null;
   reset(): MeasuredViewportRange | null;
   /**
@@ -66,6 +67,7 @@ function CeriousScrollInner<TItem>(
     scroller,
     render,
     jumpToElement,
+    jumpToItem,
     scrollToPercentage,
     reset,
     recalculate,
@@ -73,8 +75,8 @@ function CeriousScrollInner<TItem>(
 
   useImperativeHandle(
     ref,
-    () => ({ scroller, render, jumpToElement, scrollToPercentage, reset, recalculate }),
-    [scroller, render, jumpToElement, scrollToPercentage, reset, recalculate],
+    () => ({ scroller, render, jumpToElement, jumpToItem, scrollToPercentage, reset, recalculate }),
+    [scroller, render, jumpToElement, jumpToItem, scrollToPercentage, reset, recalculate],
   );
 
   return (

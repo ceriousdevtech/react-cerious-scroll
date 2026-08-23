@@ -91,6 +91,50 @@ describe('<CeriousScroll>', () => {
     expect(container.textContent).toContain('Row 0');
   });
 
+  it('renders declarative Masonry cards and exposes card navigation', async () => {
+    const ref = createRef<CeriousScrollHandle>();
+    const { container } = render(
+      <CeriousScroll
+        ref={ref}
+        totalElements={100}
+        getItem={(index) => index}
+        options={{
+          layout: 'masonry',
+          attachScrollbar: false,
+          masonry: { columns: 2, segmentSize: 8, getItemHeight: () => 60 },
+        }}
+        renderItem={(index) => <div className="masonry-row">Card {index}</div>}
+        style={{ height: 300 }}
+      />,
+    );
+
+    await flushFrames();
+    expect(container.querySelectorAll('.masonry-row').length).toBeGreaterThan(0);
+    expect(ref.current?.scroller?.masonryDeterminism).toBe('canonical');
+
+    await act(async () => { ref.current?.jumpToItem(50); });
+    expect(container.textContent).toContain('Card 50');
+  });
+
+  it('measures dynamic Masonry cards through the React probe bridge', async () => {
+    const { container } = render(
+      <CeriousScroll
+        totalElements={100}
+        getItem={(index) => index}
+        options={{
+          layout: 'masonry',
+          attachScrollbar: false,
+          masonry: { columns: 2, segmentSize: 4, estimatedItemHeight: 80 },
+        }}
+        renderItem={(index) => <div className="dynamic-card">Dynamic {index}</div>}
+        style={{ height: 300 }}
+      />,
+    );
+
+    await flushFrames();
+    expect(container.querySelectorAll('.dynamic-card').length).toBeGreaterThan(0);
+  });
+
   it('does not re-render unchanged rows on a reposition render()', async () => {
     // A scroll repositions existing rows (the engine writes their `top` to the
     // DOM directly) without changing their content. The per-row portal cache

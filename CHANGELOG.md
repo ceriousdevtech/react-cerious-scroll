@@ -5,6 +5,18 @@ All notable changes to react-cerious-scroll will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-08-22
+
+### Added
+- Declarative canonical and dynamic Masonry support. The wrapper supplies the core DOM `renderItem` callback while consumers continue returning React nodes from the existing `renderItem` prop.
+- `jumpToItem(index, screenOffset?)` on the hook result and component ref.
+- `CeriousScrollOptions` now accepts Masonry geometry without requiring the engine's imperative DOM callback.
+- Canonical-height and dynamic-height Masonry demo routes and regression tests for both rendering paths.
+
+### Changed
+- Updated `@ceriousdevtech/cerious-scroll` to `^1.1.0` and re-exported the new Masonry and height-provider types.
+- Masonry card-count changes recreate card-derived segment state; list and table count changes continue updating in place.
+
 ## [1.0.7] - 2026-06-24
 
 ### Changed

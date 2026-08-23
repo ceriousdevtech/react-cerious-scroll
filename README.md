@@ -110,7 +110,7 @@ function List() {
 | `totalElements` | `number` | Total item count. Required if `items` is omitted. |
 | `getItem` | `(index) => TItem` | Lazy item getter for large/sparse datasets. |
 | `tableHeader` | `ReactNode` | Table mode only. A `<tr>` of `<th>`s rendered into the engine's `<thead>` (see [Table layout](#table-layout)). |
-| `options` | `CeriousScrollOptions` | Engine options (keyboard/touch/wheel/scrollbar/`layout`/etc.). Read once at creation. |
+| `options` | `CeriousScrollOptions` | Engine options. Masonry's DOM callback is supplied by the wrapper. Read once at creation. |
 | `autoRender` | `boolean` | Re-render on scroll/resize/data changes. Default `true`. |
 | `onViewportChange` | `(detail) => void` | Normalized viewport-change callback. |
 | `onMeasuredViewport` | `(range) => void` | Measured range after each render pass. |
@@ -122,6 +122,7 @@ function List() {
 ```tsx
 const ref = useRef<CeriousScrollHandle>(null);
 // ref.current?.jumpToElement(500);
+// ref.current?.jumpToItem(500); // Masonry cards
 // ref.current?.scrollToPercentage(50);
 // ref.current?.reset();
 // ref.current?.render();
@@ -130,6 +131,38 @@ const ref = useRef<CeriousScrollHandle>(null);
 ```
 
 ---
+
+## Masonry layout
+
+Set `layout: 'masonry'` and provide Masonry geometry without a DOM
+`renderItem`; the wrapper connects your existing React render prop to the core
+renderer. Supplying `getItemHeight` selects canonical placement:
+
+```tsx
+<CeriousScroll
+  ref={ref}
+  className="gallery"
+  totalElements={photos.length}
+  getItem={(index) => photos[index]}
+  options={{
+    layout: 'masonry',
+    masonry: {
+      getItemHeight: (_index, width) => width * 0.75 + 48,
+      targetColumnWidth: 280,
+      gap: 16,
+    },
+  }}
+  renderItem={(photo, index) => <PhotoCard photo={photo} index={index} />}
+/>
+```
+
+Omit `getItemHeight` for dynamic DOM-measured cards. React static markup is
+used for the offscreen measurement probe; visible cards remain normal live
+portals with Context, refs, state, and events.
+
+Use `ref.current?.jumpToItem(index, screenOffset?)` for card navigation and
+`ref.current?.scroller?.masonryDeterminism` to read `'canonical'` or `'local'`.
+The demo gallery includes matching canonical and dynamic Masonry pages.
 
 ## Table layout
 
@@ -173,8 +206,8 @@ import { TABLE_COLUMNS } from './data';
   built-in `ResizeObserver`.
 - **`options` are read at creation.** Changing `options` after mount has no
   effect; remount (e.g. with a `key`) to apply new engine options.
-- **Changing the item count** recreates the engine internally (scroll position
-  is preserved). Mutating items without changing the count just re-renders the
+- **Changing the item count** updates lists/tables in place. Masonry recreates
+  its card-count-derived segment layout. Mutating items without changing the count just re-renders the
   content (cheap, and your row state is preserved) — it does **not** discard
   cached heights, so editable grids that produce a new `items` array on every
   edit don't trigger a full viewport re-measure.

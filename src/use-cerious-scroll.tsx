@@ -19,8 +19,9 @@ import { createPortal, flushSync } from 'react-dom';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   CeriousScroll as CeriousScrollEngine,
-  type CeriousScrollOptions,
+  type CeriousScrollOptions as CoreCeriousScrollOptions,
   type ElementRenderer,
+  type MasonryOptions,
   type MeasuredViewportRange,
 } from '@ceriousdevtech/cerious-scroll';
 
@@ -29,6 +30,14 @@ import {
   subscribeViewportChange,
   type CeriousViewportChangeDetail,
 } from './viewport-change';
+
+/** Engine options adapted for React-owned Masonry rendering. */
+export type CeriousScrollOptions = Omit<CoreCeriousScrollOptions, 'masonry'> & {
+  masonry?: Omit<MasonryOptions, 'renderItem'> & {
+    /** Accepted for backward compatibility; React supplies the active renderer. */
+    renderItem?: MasonryOptions['renderItem'];
+  };
+};
 
 export interface UseCeriousScrollOptions<TItem = unknown> {
   /** Total number of items. Falls back to `items.length` when omitted. */
@@ -68,6 +77,8 @@ export interface UseCeriousScrollResult {
   render: () => MeasuredViewportRange | null;
   /** Jump to an element index, then render. */
   jumpToElement: (index: number) => MeasuredViewportRange | null;
+  /** Masonry mode only: jump to a card index, then render. */
+  jumpToItem: (index: number, screenOffset?: number) => MeasuredViewportRange | null;
   /** Scroll to a percentage (0..100), then render. */
   scrollToPercentage: (percentage: number) => MeasuredViewportRange | null;
   /** Reset to the top, then render. */
@@ -139,6 +150,7 @@ export function useCeriousScroll<TItem = unknown>(
   const tableHeaderRef = useRef<ReactNode>(opts.tableHeader);
   const [, forceRender] = useReducer((c: number) => c + 1, 0);
   const [scroller, setScroller] = useState<CeriousScrollEngine | null>(null);
+  const [generation, recreate] = useReducer((c: number) => c + 1, 0);
 
   // Always-fresh refs so the stable closures below see the latest values.
   const renderItemRef = useRef(opts.renderItem);
@@ -169,6 +181,36 @@ export function useCeriousScroll<TItem = unknown>(
     return (items ? items[index] : undefined) as TItem;
   }, []);
 
+  const renderMasonryItem = useCallback((index: number, el: HTMLElement): void => {
+    const item = getItem(index);
+
+    // Dynamic mode asks the wrapper to render into a short-lived offscreen
+    // probe before positioning the visible card. Static markup gives the core
+    // a synchronous height without mounting a second live React tree.
+    if (el.dataset.ceriousMasonry === 'probe') {
+      const mount = document.createElement('div');
+      mount.setAttribute(ROW_ATTR, String(index));
+      mount.innerHTML = renderToStaticMarkup(
+        createElement(Fragment, null, renderItemRef.current(item, index)),
+      );
+      el.appendChild(mount);
+      return;
+    }
+
+    // Masonry recycles card elements. Keep one React-owned mount inside each
+    // engine card and re-key its portal when that card is assigned a new index.
+    let mount = el.querySelector<HTMLElement>(`[${ROW_ATTR}]`);
+    if (!mount) {
+      mount = document.createElement('div');
+      el.appendChild(mount);
+    }
+    mount.setAttribute(ROW_ATTR, String(index));
+    rowsRef.current.forEach((entry, oldIndex) => {
+      if (entry.el === el && oldIndex !== index) rowsRef.current.delete(oldIndex);
+    });
+    rowsRef.current.set(index, { el, mount });
+  }, [getItem]);
+
   const render = useCallback((): MeasuredViewportRange | null => {
     const host = hostRef.current;
     if (!host) return null;
@@ -189,6 +231,7 @@ export function useCeriousScroll<TItem = unknown>(
     // node"). The mount is a `display: contents` wrapper, so its <td> children
     // still lay out as the <tr>'s cells while React fully owns the wrapper.
     const tableMode = optionsRef.current?.layout === 'table';
+    const masonryMode = optionsRef.current?.layout === 'masonry';
 
     const renderer: ElementRenderer = (index, el) => {
       // The engine renders incrementally: it calls us, then immediately reads
@@ -214,9 +257,15 @@ export function useCeriousScroll<TItem = unknown>(
     const range = instance.renderViewport(height, contentEl, renderer);
 
     // Drop rows the engine no longer renders.
-    const active = new Set(instance.getRenderedIndices());
+    const activeRows = masonryMode ? null : new Set(instance.getRenderedIndices());
     rowsRef.current.forEach((_entry, index) => {
-      if (!active.has(index)) rowsRef.current.delete(index);
+      if (masonryMode) {
+        if (!_entry.el.isConnected || _entry.el.dataset.elementIndex !== String(index)) {
+          rowsRef.current.delete(index);
+        }
+      } else if (!activeRows!.has(index)) {
+        rowsRef.current.delete(index);
+      }
     });
 
     // The engine has finished measuring, so the static HTML has done its job.
@@ -249,16 +298,28 @@ export function useCeriousScroll<TItem = unknown>(
     const container = containerRef.current;
     if (!container) return;
 
-    const contentEl = ensureContentElement(container);
     const userOptions = optionsRef.current ?? {};
+    const masonryMode = userOptions.layout === 'masonry';
+    const contentEl = masonryMode ? container : ensureContentElement(container);
     const userOnScroll = userOptions.onScroll;
-    const mergedOptions: CeriousScrollOptions = {
-      ...userOptions,
+    const { masonry: userMasonry, ...baseOptions } = userOptions;
+    const mergedOptions: CoreCeriousScrollOptions = {
+      ...baseOptions,
       onScroll: () => {
         userOnScroll?.();
         if (autoRenderRef.current) render();
       },
     };
+
+    if (masonryMode) {
+      if (!userMasonry) {
+        throw new Error("useCeriousScroll: layout 'masonry' requires `options.masonry`.");
+      }
+      mergedOptions.masonry = {
+        ...userMasonry,
+        renderItem: renderMasonryItem,
+      };
+    }
 
     // Table mode: capture the engine-created <thead> so we can portal the
     // declarative header into it (and still run any user-provided header hook).
@@ -306,10 +367,9 @@ export function useCeriousScroll<TItem = unknown>(
       unsubscribe();
 
       // Remember the position so a recreation can restore it.
-      posRef.current = {
-        currentElement: instance.currentElement,
-        scrollOffset: instance.scrollOffset,
-      };
+      posRef.current = optionsRef.current?.layout === 'masonry'
+        ? null
+        : { currentElement: instance.currentElement, scrollOffset: instance.scrollOffset };
 
       // Drop row portals before tearing down the engine. No flushSync here:
       // on unmount the portals leave with the component; on recreation the
@@ -318,16 +378,16 @@ export function useCeriousScroll<TItem = unknown>(
       nodeCacheRef.current.clear();
       lastRenderItemRef.current = null;
 
-      contentEl.textContent = '';
       instance.detachScrollbar(container);
       instance.dispose();
+      contentEl.textContent = '';
 
       hostRef.current = null;
       setScroller(null);
     };
     // Mount-only: count changes are handled in place by the effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [render]);
+  }, [render, renderMasonryItem, generation]);
 
   // Grow/shrink the dataset IN PLACE when the element count changes — no
   // recreate. updateTotalElements propagates the new count to every subsystem
@@ -341,7 +401,14 @@ export function useCeriousScroll<TItem = unknown>(
     const host = hostRef.current;
     if (!host || totalDep == null) return;
     const next = resolveTotal(totalRef.current, itemsRef.current?.length ?? null);
-    if (next === host.scroller.totalElements) return;
+    const masonryMode = optionsRef.current?.layout === 'masonry';
+    const current = masonryMode ? host.scroller.itemCount : host.scroller.totalElements;
+    if (next === current) return;
+
+    if (masonryMode) {
+      recreate();
+      return;
+    }
 
     host.scroller.updateTotalElements(next);
     // A shrink can leave the position past the new end — clamp it.
@@ -386,6 +453,16 @@ export function useCeriousScroll<TItem = unknown>(
       const host = hostRef.current;
       if (!host) return null;
       host.scroller.jumpToElement(index);
+      return render();
+    },
+    [render],
+  );
+
+  const jumpToItem = useCallback(
+    (index: number, screenOffset = 0): MeasuredViewportRange | null => {
+      const host = hostRef.current;
+      if (!host) return null;
+      host.scroller.jumpToItem(index, screenOffset);
       return render();
     },
     [render],
@@ -500,6 +577,7 @@ export function useCeriousScroll<TItem = unknown>(
     scroller,
     render,
     jumpToElement,
+    jumpToItem,
     scrollToPercentage,
     reset,
     recalculate,

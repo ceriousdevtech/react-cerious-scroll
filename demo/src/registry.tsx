@@ -10,6 +10,8 @@ import { DataGridDemo } from './demos/DataGridDemo';
 import { TableDemo } from './demos/TableDemo';
 import { TableHeightsDemo } from './demos/TableHeightsDemo';
 import { TableStreamDemo } from './demos/TableStreamDemo';
+import { MasonryDemo } from './demos/MasonryDemo';
+import { MasonryDynamicDemo } from './demos/MasonryDynamicDemo';
 import { ChatDemo } from './demos/ChatDemo';
 import { LogViewerDemo } from './demos/LogViewerDemo';
 import { CodeViewerDemo } from './demos/CodeViewerDemo';
@@ -68,6 +70,20 @@ export const DEMOS: DemoMeta[] = [
     emoji: '📡',
     blurb: 'Inject variable-height rows at the TOP of the stream — live telemetry / chat-history backfill — and watch the scroll position stay cleanly anchored to the row you were reading.',
     element: <TableStreamDemo />,
+  },
+  {
+    slug: 'masonry',
+    title: 'Masonry · Canonical',
+    emoji: '🧱',
+    blurb: 'Responsive React card columns with computed heights, reproducible placement, and only the visible cards mounted.',
+    element: <MasonryDemo />,
+  },
+  {
+    slug: 'masonry-dynamic',
+    title: 'Masonry · Dynamic',
+    emoji: '🪜',
+    blurb: 'Unpredictable React card content measured from the DOM with constant-time far jumps and locally deterministic placement.',
+    element: <MasonryDynamicDemo />,
   },
   {
     slug: 'chat',
