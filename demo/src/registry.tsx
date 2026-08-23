@@ -12,6 +12,7 @@ import { TableHeightsDemo } from './demos/TableHeightsDemo';
 import { TableStreamDemo } from './demos/TableStreamDemo';
 import { MasonryDemo } from './demos/MasonryDemo';
 import { MasonryDynamicDemo } from './demos/MasonryDynamicDemo';
+import { MasonryGalleryDemo } from './demos/MasonryGalleryDemo';
 import { ChatDemo } from './demos/ChatDemo';
 import { LogViewerDemo } from './demos/LogViewerDemo';
 import { CodeViewerDemo } from './demos/CodeViewerDemo';
@@ -84,6 +85,13 @@ export const DEMOS: DemoMeta[] = [
     emoji: '🪜',
     blurb: 'Unpredictable React card content measured from the DOM with constant-time far jumps and locally deterministic placement.',
     element: <MasonryDynamicDemo />,
+  },
+  {
+    slug: 'masonry-gallery',
+    title: 'Masonry · Real Content',
+    emoji: '🖼️',
+    blurb: 'Network images, composed React components and a carousel per card — virtualized. Shows the patterns recycled cards demand: reserved media space, enforced card height, and state kept outside the component.',
+    element: <MasonryGalleryDemo />,
   },
   {
     slug: 'chat',
